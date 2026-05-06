@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Snake – AI Meeting Assistant</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --pink: #ff2d78;
+      --pink-dim: #ff2d7844;
+      --pink-glow: #ff2d7818;
+      --blue: #00e5ff;
+      --blue-dim: #00e5ff44;
+      --blue-glow: #00e5ff14;
+      --purple: #9b00ff;
+      --bg: #04000f;
+      --surface: rgba(255,255,255,0.025);
+      --border: rgba(0,229,255,0.15);
+      --text: #e0f7ff;
+      --muted: #3a5060;
+    }
+
+    body {
+      font-family: 'Share Tech Mono', monospace;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    .hex-bg {
+      position: fixed; inset: 0;
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    .scanlines {
+      position: fixed; inset: 0;
+      z-index: 1;
+      pointer-events: none;
+      background: repeating-linear-gradient(
+        to bottom,
+        transparent 0px, transparent 3px,
+        rgba(0,0,0,0.07) 3px, rgba(0,0,0,0.07) 4px
+      );
+    }
+
+    .edge-left {
+      position: fixed; left: 0; top: 0; bottom: 0;
+      width: 1px;
+      background: linear-gradient(to bottom, transparent, var(--pink), transparent);
+      z-index: 2;
+    }
+    .edge-right {
+      position: fixed; right: 0; top: 0; bottom: 0;
+      width: 1px;
+      background: linear-gradient(to bottom, transparent, var(--blue), transparent);
+      z-index: 2;
+    }
+    .edge-top {
+      position: fixed; top: 0; left: 0; right: 0;
+      height: 1px;
+      background: linear-gradient(to right, var(--pink), var(--purple), var(--blue));
+      z-index: 10;
+      box-shadow: 0 0 18px 1px var(--pink);
+    }
+
+    .container {
+      position: relative;
+      z-index: 3;
+      max-width: 880px;
+      margin: 0 auto;
+      padding: 0 28px 80px;
+    }
+
+    /* HERO */
+    .hero { padding: 72px 0 44px; }
+
+    .eyebrow {
+      font-size: 10px;
+      color: var(--blue);
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .eyebrow::before {
+      content: '';
+      width: 32px; height: 1px;
+      background: var(--blue);
+      box-shadow: 0 0 6px var(--blue);
+      flex-shrink: 0;
+    }
+    .eyebrow::after {
+      content: '';
+      flex: 1; height: 1px;
+      background: linear-gradient(to right, var(--blue-dim), transparent);
+    }
+
+    .title {
+      font-family: 'Orbitron', monospace;
+      font-size: clamp(52px, 9vw, 88px);
+      font-weight: 900;
+      line-height: 1;
+      letter-spacing: -0.01em;
+      color: #fff;
+      text-shadow: 0 0 20px var(--pink), 0 0 60px var(--pink-dim);
+      position: relative;
+      display: inline-block;
+    }
+
+    .snake-icon {
+      display: inline-block;
+      animation: slither 2s ease-in-out infinite;
+      text-shadow: none;
+      filter: drop-shadow(0 0 12px var(--pink));
+    }
+    @keyframes slither {
+      0%, 100% { transform: rotate(-8deg) scale(1); }
+      50% { transform: rotate(8deg) scale(1.1); }
+    }
+
+    .title::before, .title::after {
+      content: '🐍 SNAKE';
+      position: absolute; top: 0; left: 0;
+      width: 100%; overflow: hidden;
+      pointer-events: none;
+    }
+    .title::before {
+      color: var(--blue);
+      clip-path: polygon(0 20%, 100% 20%, 100% 38%, 0 38%);
+      transform: translateX(-3px);
+      animation: glitch1 5s infinite;
+      text-shadow: none; opacity: 0;
+    }
+    .title::after {
+      color: var(--pink);
+      clip-path: polygon(0 62%, 100% 62%, 100% 76%, 0 76%);
+      transform: translateX(3px);
+      animation: glitch2 5s infinite;
+      text-shadow: none; opacity: 0;
+    }
+    @keyframes glitch1 {
+      0%,84%,92%,100% { opacity:0; transform:translateX(0); }
+      85% { opacity:0.7; transform:translateX(-4px); }
+      88% { opacity:0.7; transform:translateX(3px); }
+      90% { opacity:0.7; transform:translateX(0); }
+    }
+    @keyframes glitch2 {
+      0%,86%,94%,100% { opacity:0; transform:translateX(0); }
+      87% { opacity:0.7; transform:translateX(4px); }
+      90% { opacity:0.7; transform:translateX(-3px); }
+      92% { opacity:0.7; transform:translateX(0); }
+    }
+
+    .tagline {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 16px;
+      letter-spacing: 0.15em;
+    }
+    .blink { animation: blink 1.2s step-end infinite; color: var(--pink); }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+    /* FEATURES */
+    .features-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 44px 0;
+      position: relative;
+    }
+    .features-row::before {
+      content: '';
+      position: absolute; inset: 0;
+      background: linear-gradient(135deg, var(--blue-glow), transparent 50%, var(--pink-glow));
+      pointer-events: none;
+    }
+
+    .feature {
+      padding: 22px 18px;
+      border-right: 1px solid var(--border);
+      display: flex; flex-direction: column; gap: 8px;
+      transition: background 0.2s;
+    }
+    .feature:last-child { border-right: none; }
+    .feature:hover { background: rgba(0,229,255,0.04); }
+
+    @media (max-width: 600px) {
+      .feature { border-right: none; border-bottom: 1px solid var(--border); }
+      .feature:last-child { border-bottom: none; }
+    }
+
+    .feature i { font-size: 22px; color: var(--blue); filter: drop-shadow(0 0 6px var(--blue)); }
+
+    .feature-label {
+      font-family: 'Orbitron', monospace;
+      font-size: 10px; font-weight: 700;
+      color: var(--text); letter-spacing: 0.08em;
+    }
+    .feature-desc { font-size: 10px; color: var(--muted); line-height: 1.6; }
+
+    /* DOWNLOAD */
+    .dl-card {
+      border: 1px solid var(--pink);
+      border-radius: 4px;
+      padding: 28px;
+      background: var(--surface);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+      position: relative;
+      overflow: hidden;
+      flex-wrap: wrap;
+      box-shadow: 0 0 0 1px var(--pink-glow), inset 0 0 40px var(--pink-glow), 0 0 30px var(--pink-glow);
+    }
+    .dl-card::before {
+      content: '';
+      position: absolute; top: -1px; left: -1px;
+      width: 22px; height: 22px;
+      border-top: 2px solid var(--blue);
+      border-left: 2px solid var(--blue);
+      box-shadow: -2px -2px 8px var(--blue);
+    }
+    .dl-card::after {
+      content: '';
+      position: absolute; bottom: -1px; right: -1px;
+      width: 22px; height: 22px;
+      border-bottom: 2px solid var(--blue);
+      border-right: 2px solid var(--blue);
+      box-shadow: 2px 2px 8px var(--blue);
+    }
+
+    .dl-name {
+      font-family: 'Orbitron', monospace;
+      font-size: 22px; font-weight: 900;
+      color: #fff; letter-spacing: 0.05em;
+      text-shadow: 0 0 20px var(--pink);
+    }
+
+    .dl-meta {
+      font-size: 11px; color: var(--muted);
+      margin-top: 8px;
+      display: flex; gap: 20px; flex-wrap: wrap;
+    }
+    .dl-meta span { display: flex; align-items: center; gap: 5px; }
+
+    .dl-badge {
+      display: inline-block;
+      font-family: 'Orbitron', monospace;
+      font-size: 9px;
+      padding: 3px 10px;
+      background: var(--pink-dim);
+      color: var(--pink);
+      border-radius: 2px;
+      border: 1px solid var(--pink);
+      margin-top: 12px;
+      letter-spacing: 0.2em;
+      box-shadow: 0 0 10px var(--pink-dim);
+    }
+
+    .dl-btn {
+      display: inline-flex;
+      align-items: center; gap: 10px;
+      background: var(--pink);
+      color: #fff;
+      border: none; border-radius: 2px;
+      padding: 15px 32px;
+      font-family: 'Orbitron', monospace;
+      font-size: 13px; font-weight: 700; letter-spacing: 0.1em;
+      cursor: pointer; white-space: nowrap;
+      text-decoration: none;
+      transition: all 0.15s ease;
+      flex-shrink: 0;
+      box-shadow: 0 0 20px var(--pink), 0 0 40px var(--pink-dim);
+    }
+    .dl-btn i { font-size: 20px; }
+    .dl-btn:hover { background: #ff5595; box-shadow: 0 0 30px var(--pink), 0 0 60px var(--pink-dim); transform: translateY(-2px); }
+    .dl-btn:active { transform: scale(0.97); }
+
+    /* INFO PILLS */
+    .bottom-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 10px; margin-top: 14px;
+    }
+
+    .info-pill {
+      border: 1px solid var(--border);
+      border-radius: 4px; padding: 14px 16px;
+      background: var(--surface);
+      transition: border-color 0.2s;
+    }
+    .info-pill:hover { border-color: var(--blue-dim); }
+
+    .pill-label {
+      font-size: 9px; color: var(--muted);
+      letter-spacing: 0.2em; text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+    .pill-value {
+      font-family: 'Orbitron', monospace;
+      font-size: 11px; font-weight: 700; color: var(--text);
+    }
+    .pill-value.code { color: var(--blue); text-shadow: 0 0 8px var(--blue); }
+    .pill-value a { color: var(--blue); text-decoration: none; }
+
+    /* SETUP */
+    .setup { margin-top: 52px; }
+
+    .section-title {
+      font-family: 'Orbitron', monospace;
+      font-size: 10px; font-weight: 700;
+      color: var(--blue); letter-spacing: 0.3em; text-transform: uppercase;
+      margin-bottom: 20px;
+      display: flex; align-items: center; gap: 12px;
+      text-shadow: 0 0 10px var(--blue);
+    }
+    .section-title::after { content: ''; flex: 1; height: 1px; background: linear-gradient(to right, var(--blue-dim), transparent); }
+
+    .steps { display: flex; flex-direction: column; gap: 10px; }
+
+    .step {
+      border: 1px solid var(--border);
+      border-radius: 4px; padding: 18px 20px;
+      background: var(--surface);
+      display: flex; gap: 18px; align-items: flex-start;
+      transition: border-color 0.2s, background 0.2s;
+      position: relative; overflow: hidden;
+    }
+    .step:hover { border-color: var(--blue-dim); background: rgba(0,229,255,0.03); }
+    .step::before {
+      content: '';
+      position: absolute; left: 0; top: 0; bottom: 0;
+      width: 2px;
+      background: linear-gradient(to bottom, var(--blue), var(--purple));
+      box-shadow: 0 0 8px var(--blue);
+    }
+
+    .step-num {
+      font-family: 'Orbitron', monospace;
+      font-size: 11px; font-weight: 700;
+      color: var(--blue);
+      background: var(--blue-glow);
+      border: 1px solid var(--blue-dim);
+      border-radius: 2px;
+      width: 30px; height: 30px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      text-shadow: 0 0 8px var(--blue);
+    }
+
+    .step-title {
+      font-family: 'Orbitron', monospace;
+      font-size: 12px; font-weight: 700;
+      color: var(--text); margin-bottom: 8px; letter-spacing: 0.05em;
+    }
+    .step-desc { font-size: 11px; color: var(--muted); line-height: 1.7; }
+    .step-desc a { color: var(--blue); text-decoration: none; }
+
+    .code-block {
+      background: rgba(0,0,0,0.4);
+      border: 1px solid rgba(0,229,255,0.1);
+      border-radius: 2px;
+      padding: 10px 14px;
+      font-size: 11px; color: #86efac;
+      margin-top: 10px; line-height: 1.9;
+    }
+    .cm { color: #2a3f4f; }
+
+    /* FOOTER */
+    .footer {
+      margin-top: 52px; padding-top: 20px;
+      border-top: 1px solid rgba(0,229,255,0.08);
+      font-size: 10px; color: var(--muted); line-height: 2;
+    }
+    .footer a { color: var(--pink); text-decoration: none; }
+    .footer .hl { color: #86efac; }
+  </style>
+</head>
+<body>
+
+<svg class="hex-bg" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <pattern id="hex" x="0" y="0" width="56" height="97" patternUnits="userSpaceOnUse">
+      <polygon points="28,1 55,15 55,43 28,57 1,43 1,15"
+               fill="none" stroke="rgba(0,229,255,0.07)" stroke-width="0.8"/>
+      <polygon points="28,49 55,63 55,91 28,105 1,91 1,63"
+               fill="none" stroke="rgba(0,229,255,0.07)" stroke-width="0.8"/>
+      <polygon points="0,25 -27,39 -27,67 0,81 27,67 27,39"
+               fill="none" stroke="rgba(0,229,255,0.07)" stroke-width="0.8"/>
+      <polygon points="56,25 29,39 29,67 56,81 83,67 83,39"
+               fill="none" stroke="rgba(0,229,255,0.07)" stroke-width="0.8"/>
+    </pattern>
+    <pattern id="hex-pink" x="28" y="48" width="112" height="194" patternUnits="userSpaceOnUse">
+      <polygon points="56,2 110,30 110,86 56,114 2,86 2,30"
+               fill="none" stroke="rgba(255,45,120,0.05)" stroke-width="0.8"/>
+    </pattern>
+    <radialGradient id="vig" cx="50%" cy="50%" r="70%">
+      <stop offset="0%" stop-color="transparent"/>
+      <stop offset="100%" stop-color="#04000f" stop-opacity="0.85"/>
+    </radialGradient>
+  </defs>
+  <rect width="100%" height="100%" fill="url(#hex)"/>
+  <rect width="100%" height="100%" fill="url(#hex-pink)"/>
+  <rect width="100%" height="100%" fill="url(#vig)"/>
+</svg>
+
+<div class="scanlines"></div>
+<div class="edge-left"></div>
+<div class="edge-right"></div>
+<div class="edge-top"></div>
+
+<div class="container">
+
+  <div class="hero">
+    <div class="eyebrow">AI Meeting Assistant &nbsp;//&nbsp; v1.0.0</div>
+    <h1 class="title"><span class="snake-icon">🐍</span> SNAKE</h1>
+    <p class="tagline">Silent. Smart. Always listening. <span class="blink">█</span></p>
+  </div>
+
+  <div class="features-row">
+    <div class="feature">
+      <i class="ti ti-microphone" aria-hidden="true"></i>
+      <div class="feature-label">Manual + Auto</div>
+      <div class="feature-desc">Click or Space. Silence detection at 2.2s</div>
+    </div>
+    <div class="feature">
+      <i class="ti ti-eye-off" aria-hidden="true"></i>
+      <div class="feature-label">Screen-Hide</div>
+      <div class="feature-desc">Toggle HIDE — vanish from recordings</div>
+    </div>
+    <div class="feature">
+      <i class="ti ti-bolt" aria-hidden="true"></i>
+      <div class="feature-label">Groq LLaMA 70B</div>
+      <div class="feature-desc">Ultra-fast inference, free tier OK</div>
+    </div>
+    <div class="feature">
+      <i class="ti ti-layout-bottombar" aria-hidden="true"></i>
+      <div class="feature-label">Glass Overlay</div>
+      <div class="feature-desc">Frameless, transparent, draggable</div>
+    </div>
+  </div>
+
+  <!--
+    ============================================================
+    Replace the href below with your GitHub Release asset URL:
+    https://github.com/YOUR_USERNAME/YOUR_REPO/releases/download/v1.0.0/Snake-AI.exe
+    ============================================================
+  -->
+  <div class="dl-card">
+    <div>
+      <div class="dl-name">SNAKE-AI.EXE</div>
+      <div class="dl-meta">
+        <span><i class="ti ti-brand-windows"></i> Windows x64</span>
+        <span><i class="ti ti-package"></i> Electron app</span>
+      </div>
+      <div class="dl-badge">◈ LATEST RELEASE</div>
+    </div>
+    <a class="dl-btn"
+       href="https://github.com/YOUR_USERNAME/YOUR_REPO/releases/download/v1.0.0/Snake-AI.exe"
+       download="Snake-AI.exe">
+      <i class="ti ti-download" aria-hidden="true"></i>
+      DOWNLOAD .EXE
+    </a>
+  </div>
+
+  <div class="bottom-row">
+    <div class="info-pill">
+      <div class="pill-label">Speech engine</div>
+      <div class="pill-value">Google Cloud STT</div>
+    </div>
+    <div class="info-pill">
+      <div class="pill-label">AI model</div>
+      <div class="pill-value">llama-3.3-70b-versatile</div>
+    </div>
+    <div class="info-pill">
+      <div class="pill-label">Get API key (free)</div>
+      <div class="pill-value code"><a href="https://console.groq.com/keys" target="_blank">console.groq.com/keys</a></div>
+    </div>
+  </div>
+
+  <div class="setup">
+    <div class="section-title">Setup Protocol</div>
+    <div class="steps">
+
+      <div class="step">
+        <div class="step-num">01</div>
+        <div class="step-body">
+          <div class="step-title">Install dependencies</div>
+          <div class="code-block">npm install<br>electron-rebuild</div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">02</div>
+        <div class="step-body">
+          <div class="step-title">Add Groq API key</div>
+          <div class="step-desc">Get a free key at <a href="https://console.groq.com/keys" target="_blank">console.groq.com/keys</a></div>
+          <div class="code-block">export GROQ_API_KEY=gsk_xxxx<br><span class="cm"># or replace 'YOUR_GROQ_API_KEY_HERE' in main.js line 19</span></div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">03</div>
+        <div class="step-body">
+          <div class="step-title">Add Google Speech credentials</div>
+          <div class="step-desc">Place your Google Cloud service account JSON at:</div>
+          <div class="code-block">lazy-job-seeker-4b29b-eb0b308d0ba7.json</div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">04</div>
+        <div class="step-body">
+          <div class="step-title">Launch</div>
+          <div class="code-block">npm start</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="footer">
+    Build: <span class="hl">npm run build-win</span> (Windows) &nbsp;·&nbsp;
+    <span class="hl">npm run build-macarm</span> (macOS Apple Silicon)<br>
+    Powered by <a href="https://console.groq.com" target="_blank">Groq</a> inference &nbsp;·&nbsp; Google Cloud Speech-to-Text streaming transcription
+  </div>
+
+</div>
+</body>
+</html>
