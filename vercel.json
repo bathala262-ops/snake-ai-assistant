@@ -6,7 +6,5 @@
   "routes": [
     { "src": "/(.*)", "dest": "/index.html" }
   ]
-  "win": {
-  "target": ["nsis"]
-}
+  
 }
